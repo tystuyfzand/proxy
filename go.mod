@@ -1,4 +1,4 @@
-module github.com/chi-middleware/proxy
+module github.com/tystuyfzand/proxy
 
 go 1.14
 
