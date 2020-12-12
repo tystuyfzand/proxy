@@ -13,8 +13,11 @@ import (
 	"strings"
 )
 
-var xForwardedFor = http.CanonicalHeaderKey("X-Forwarded-For")
-var xRealIP = http.CanonicalHeaderKey("X-Real-IP")
+var (
+	xForwardedFor   = http.CanonicalHeaderKey("X-Forwarded-For")
+	xForwardedProto = http.CanonicalHeaderKey("X-Forwarded-Proto")
+	xRealIP         = http.CanonicalHeaderKey("X-Real-IP")
+)
 
 // ForwardedHeaders is a middleware that sets a http.Request's RemoteAddr to the results
 // of parsing either the X-Real-IP header or the X-Forwarded-For header (in that
@@ -26,8 +29,14 @@ func ForwardedHeaders(options ...*ForwardedHeadersOptions) func(h http.Handler) 
 	}
 	return func(h http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
-			if rip := realIP(r, opt); len(rip) > 0 {
-				r.RemoteAddr = net.JoinHostPort(rip, "0")
+			if opt.isTrustedProxy(r.RemoteAddr) {
+				if rip := realIP(r, opt); len(rip) > 0 {
+					r.RemoteAddr = net.JoinHostPort(rip, "0")
+				}
+
+				if scheme := forwardedScheme(r); len(scheme) > 0 {
+					r.URL.Scheme = scheme
+				}
 			}
 
 			h.ServeHTTP(w, r)
@@ -38,15 +47,6 @@ func ForwardedHeaders(options ...*ForwardedHeadersOptions) func(h http.Handler) 
 }
 
 func realIP(r *http.Request, options *ForwardedHeadersOptions) string {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return ""
-	}
-
-	if !options.isTrustedProxy(net.ParseIP(host)) {
-		return ""
-	}
-
 	var ip string
 
 	if xrip := r.Header.Get(xRealIP); xrip != "" {
@@ -70,4 +70,14 @@ func realIP(r *http.Request, options *ForwardedHeadersOptions) string {
 	}
 
 	return ip
+}
+
+func forwardedScheme(r *http.Request) string {
+	var scheme string
+
+	if xproto := r.Header.Get(xForwardedProto); xproto != "" {
+		scheme = xproto
+	}
+
+	return scheme
 }

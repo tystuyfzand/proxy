@@ -75,7 +75,15 @@ func (opts *ForwardedHeadersOptions) AddTrustedNetwork(cidr string) *ForwardedHe
 	return opts
 }
 
-func (opts *ForwardedHeadersOptions) isTrustedProxy(ip net.IP) bool {
+func (opts *ForwardedHeadersOptions) isTrustedProxy(remoteAddr string) bool {
+	host, _, err := net.SplitHostPort(remoteAddr)
+
+	if err != nil {
+		return false
+	}
+
+	ip := net.ParseIP(host)
+
 	if ip == nil {
 		return false
 	}
